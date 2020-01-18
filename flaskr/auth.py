@@ -16,6 +16,7 @@ def register_organization():
     if request.method == 'POST':
         organization_name = request.form['organization_name']
         organization_deck = request.form['organization_deck']
+        organization_logo_url = request.form['organization_logo']
         db = get_db()
         error = None
 
@@ -23,6 +24,8 @@ def register_organization():
             error = name_required
         elif not organization_deck:
             error = "Organization deck URL is required."
+        elif not organization_logo_url:
+            error = "Organization logo url is required."
         elif db.execute('SELECT id FROM organization WHERE name = ?', (organization_name,)).fetchone() is not None:
             error = 'Organization "{}" is already registered.'.format(organization_name)
 
@@ -41,8 +44,8 @@ def register_organization():
                 author_id = 1
             else:
                 author_id = author_id[0]
-            db.execute('INSERT INTO organization (name, organization_deck, author_id) VALUES (?, ?, ?)',
-                       (organization_name, organization_deck, author_id))
+            db.execute('INSERT INTO organization (name, organization_deck, author_id, organization_logo_url) VALUES (?, ?, ?, ?)',
+                       (organization_name, organization_deck, author_id, organization_logo_url))
             db.commit()
             return access_code
         return error

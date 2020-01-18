@@ -85,3 +85,7 @@ lint/tmp/
 # lint/reports/
 
 flaskr/__pycache__/
+
+dist/
+
+WhoIsWhoBackend.egg-info/
