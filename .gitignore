@@ -2,7 +2,10 @@
 *.apk
 *.ap_
 *.aab
-
+venv/
+.idea/
+instance/
+**/__pycache/
 # Files for the ART/Dalvik VM
 *.dex
 
@@ -80,3 +83,5 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+flaskr/__pycache__/
