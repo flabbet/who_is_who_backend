@@ -132,8 +132,11 @@ def get_deck():
         else:
             data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?",
                               (org_id[0],)).fetchall()[0]
+            logged_user_is_admin = db.execute('SELECT is_admin FROM user WHERE email = ?', (oauth_email,)).fetchone()[0]
             return jsonify({"deck_url": data[0],
-                            "logo_url": data[1]})
+                            "logo_url": data[1],
+                            "is_admin": logged_user_is_admin
+                            })
 
 
 def get_token_email(token):
