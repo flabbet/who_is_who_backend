@@ -30,6 +30,8 @@ def register_organization():
             error = "Creator email is required."
         elif db.execute('SELECT id FROM organization WHERE name = ?', (organization_name,)).fetchone() is not None:
             error = 'Organization "{}" is already registered.'.format(organization_name)
+        elif db.execute('SELECT * FROM user WHERE email = ?', (author_email,)).fetchone() is not None:
+            error = "This email is already registered to another organization"
 
         if error is None:
 
@@ -53,28 +55,65 @@ def register_organization():
         return error
 
 
+@bp.route('/removeUser', methods=('POST', 'GET'))
+def remove_user():
+    if request.method == 'POST':
+        db = get_db()
+        access_token = request.form['access_token']
+        target_user_email = request.form['target_email']
+        error = None
+        request_email = get_token_email(access_token)
+
+        if not access_token:
+            error = "Access token is required."
+        elif request_email is None:
+            error = "Access token is invalid."
+        elif db.execute('SELECT * FROM user WHERE email = ?', (request_email,)).fetchone() is None:
+            error = "Email registered to this token doesn't exist"
+        elif db.execute('SELECT is_admin FROM user WHERE email = ?', (request_email,)).fetchone()[0] == 0:
+            error = "Insufficient permissions."
+
+        org_id = db.execute('SELECT organization_id FROM user WHERE email = ?', (request_email,)).fetchone()[0]
+        if db.execute('SELECT * FROM user WHERE (email, organization_id) = (?, ?)', (target_user_email, org_id)).fetchone() is None:
+            error = "User doesn't exist in requested organization"
+
+        if error is None:
+            db.execute('DELETE FROM user WHERE email = ?',
+                       (target_user_email,))
+            db.commit()
+            return "Success"
+        return error
+
+
 @bp.route('/addUser', methods=('POST', 'GET'))
 def add_user():
     if request.method == 'POST':
         db = get_db()
-        org_name = request.form['organization_name']
+        access_token = request.form['access_token']
         user_email = request.form['email']
         is_admin = request.form['is_admin']
+        request_email = get_token_email(access_token)
 
         error = None
-        if not org_name:
-            error = name_required
+        if not access_token:
+            error = "Access token is required."
+        elif request_email is None:
+            error = "Access token is invalid."
         elif not is_admin:
             is_admin = 0
-        elif db.execute('SELECT * FROM organization WHERE name = ?', (org_name,)).fetchone() is None:
-            error = "Entered organization doesn't exist."
+        elif db.execute('SELECT * FROM user WHERE email = ?', (user_email,)).fetchone() is not None:
+            error = "This user is already registered"
+        elif db.execute('SELECT * FROM user WHERE email = ?', (request_email,)).fetchone() is None:
+            error = "Email registered to this token doesn't exist"
+        elif db.execute('SELECT is_admin FROM user WHERE email = ?', (request_email,)).fetchone()[0] == 0:
+            error = "Insufficient permissions."
 
         if error is None:
-            org_id = db.execute('SELECT id FROM organization WHERE name = ?', (org_name,)).fetchone()[0]
+            org_id = db.execute('SELECT id FROM user WHERE email = ?', (request_email,)).fetchone()[0]
             db.execute('INSERT INTO user (email, organization_id, is_admin) VALUES (?, ?, ?)',
                        (user_email, org_id, is_admin))
             db.commit()
-            return "Success!"
+            return "Success"
         return error
 
 
@@ -83,16 +122,24 @@ def get_deck():
     if request.method == 'POST':
         db = get_db()
         access_token = request.form['access_token']
-        validation_request = requests.get(
-            "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={}".format(access_token))
-        try:
-            oauth_email = validation_request.json()['email']
-        except KeyError:
+        oauth_email = get_token_email(access_token)
+        if oauth_email is None:
             return "Invalid access token"
+
         org_id = db.execute("SELECT organization_id FROM user WHERE email = ?", (oauth_email,)).fetchone()
         if org_id is None:
             return "Logged user is not connected to any organization."
         else:
-            data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?", (org_id[0],)).fetchall()[0]
+            data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?",
+                              (org_id[0],)).fetchall()[0]
             return jsonify({"deck_url": data[0],
                             "logo_url": data[1]})
+
+
+def get_token_email(token):
+    validation_request = requests.get(
+        "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={}".format(token))
+    try:
+        return validation_request.json()['email']
+    except KeyError:
+        return None
