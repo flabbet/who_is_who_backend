@@ -3,7 +3,7 @@ DROP TABLE IF EXISTS organization;
 
 CREATE TABLE user (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  access_code TEXT UNIQUE NOT NULL,
+  email TEXT NOT NULL,
   organization_id INTEGER NOT NULL,
   is_admin BOOLEAN NOT NULL,
   FOREIGN KEY (organization_id) REFERENCES organization (id)
