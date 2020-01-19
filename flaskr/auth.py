@@ -1,7 +1,7 @@
+import requests
 from flask import (
-    Blueprint, request
-)
-from werkzeug.security import check_password_hash, generate_password_hash
+    Blueprint, request,
+    jsonify)
 
 from flaskr.db import get_db
 
@@ -45,8 +45,9 @@ def register_organization():
                 author_id = 1
             else:
                 author_id = author_id[0]
-            db.execute('INSERT INTO organization (name, organization_deck, author_id, organization_logo_url) VALUES (?, ?, ?, ?)',
-                       (organization_name, organization_deck, author_id, organization_logo_url))
+            db.execute(
+                'INSERT INTO organization (name, organization_deck, author_id, organization_logo_url) VALUES (?, ?, ?, ?)',
+                (organization_name, organization_deck, author_id, organization_logo_url))
             db.commit()
             return "Success"
         return error
@@ -80,16 +81,18 @@ def add_user():
 @bp.route('/getDeck', methods=('POST', 'GET'))
 def get_deck():
     if request.method == 'POST':
-        error = None
         db = get_db()
-        access_code = request.form['access_code']
-        for user in db.execute('SELECT * FROM user').fetchall():
-            if check_password_hash(user['access_code'], access_code):
-                org_id = db.execute('SELECT organization_id FROM user WHERE id = ?', (user['id'],)).fetchone()
-                if org_id is None:
-                    org_id = 1
-                else:
-                    org_id = org_id[0]
-                return db.execute("SELECT organization_deck FROM organization WHERE id = ?", (org_id,)).fetchone()[0]
-        error = "Entered access code is not valid."
-        return error
+        access_token = request.form['access_token']
+        validation_request = requests.get(
+            "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={}".format(access_token))
+        try:
+            oauth_email = validation_request.json()['email']
+        except KeyError:
+            return "Invalid access token"
+        org_id = db.execute("SELECT organization_id FROM user WHERE email = ?", (oauth_email,)).fetchone()
+        if org_id is None:
+            return "Logged user is not connected to any organization."
+        else:
+            data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?", (org_id[0],)).fetchall()[0]
+            return jsonify({"deck_url": data[0],
+                            "logo_url": data[1]})
