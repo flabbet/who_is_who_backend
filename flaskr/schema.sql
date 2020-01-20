@@ -16,5 +16,6 @@ CREATE TABLE organization (
   name TEXT NOT NULL,
   organization_deck TEXT NOT NULL,
   organization_logo_url TEXT NOT NULL,
+  domain TEXT NOT NULL,
   FOREIGN KEY (author_id) REFERENCES user (id)
 );

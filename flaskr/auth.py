@@ -17,6 +17,7 @@ def register_organization():
         organization_name = request.form['organization_name']
         organization_deck = request.form['organization_deck']
         organization_logo_url = request.form['organization_logo']
+        organization_domain = request.form['domain']
         db = get_db()
         error = None
 
@@ -28,8 +29,12 @@ def register_organization():
             error = "Organization logo url is required."
         elif not author_email:
             error = "Creator email is required."
+        elif not organization_domain:
+            error = "Organization domain is required."
         elif db.execute('SELECT id FROM organization WHERE name = ?', (organization_name,)).fetchone() is not None:
             error = 'Organization "{}" is already registered.'.format(organization_name)
+        elif db.execute('SELECT id FROM organization WHERE domain = ?', (organization_domain,)).fetchone() is not None:
+            error = "Domain {} is already registered.".format(organization_domain)
         elif db.execute('SELECT * FROM user WHERE email = ?', (author_email,)).fetchone() is not None:
             error = "This email is already registered to another organization"
 
@@ -48,8 +53,8 @@ def register_organization():
             else:
                 author_id = author_id[0]
             db.execute(
-                'INSERT INTO organization (name, organization_deck, author_id, organization_logo_url) VALUES (?, ?, ?, ?)',
-                (organization_name, organization_deck, author_id, organization_logo_url))
+                'INSERT INTO organization (name, organization_deck, author_id, organization_logo_url, domain) VALUES (?, ?, ?, ?, ?)',
+                (organization_name, organization_deck, author_id, organization_logo_url, organization_domain))
             db.commit()
             return "Success"
         return error
@@ -127,16 +132,23 @@ def get_deck():
             return "Invalid access token"
 
         org_id = db.execute("SELECT organization_id FROM user WHERE email = ?", (oauth_email,)).fetchone()
+        user_domain = oauth_email.split('@')[1]
         if org_id is None:
-            return "Logged user is not connected to any organization."
-        else:
-            data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?",
-                              (org_id[0],)).fetchall()[0]
-            logged_user_is_admin = db.execute('SELECT is_admin FROM user WHERE email = ?', (oauth_email,)).fetchone()[0]
-            return jsonify({"deck_url": data[0],
-                            "logo_url": data[1],
-                            "is_admin": logged_user_is_admin
-                            })
+            org_id = db.execute('SELECT id FROM organization WHERE domain = ?', (user_domain,)).fetchone()
+            if org_id is None:
+                return "Logged user is not connected to any organization."
+            else:
+                data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?",
+                                  (org_id[0],)).fetchall()[0]
+                logged_user_is_admin = db.execute('SELECT is_admin FROM user WHERE email = ?', (oauth_email,)).fetchone()
+                if logged_user_is_admin is None:
+                    logged_user_is_admin = 0
+                else:
+                    logged_user_is_admin = logged_user_is_admin[0]
+                return jsonify({"deck_url": data[0],
+                                "logo_url": data[1],
+                                "is_admin": logged_user_is_admin
+                                })
 
 
 def get_token_email(token):
