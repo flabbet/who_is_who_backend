@@ -128,27 +128,29 @@ def get_deck():
         db = get_db()
         access_token = request.form['access_token']
         oauth_email = get_token_email(access_token)
+        error = None
         if oauth_email is None:
-            return "Invalid access token"
+            error = "Invalid access token"
 
         org_id = db.execute("SELECT organization_id FROM user WHERE email = ?", (oauth_email,)).fetchone()
         user_domain = oauth_email.split('@')[1]
         if org_id is None:
             org_id = db.execute('SELECT id FROM organization WHERE domain = ?', (user_domain,)).fetchone()
             if org_id is None:
-                return "Logged user is not connected to any organization."
+                error = "Logged user is not connected to any organization."
+        if error is None:
+            data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?",
+                                 (org_id[0],)).fetchall()[0]
+            logged_user_is_admin = db.execute('SELECT is_admin FROM user WHERE email = ?', (oauth_email,)).fetchone()
+            if logged_user_is_admin is None:
+                logged_user_is_admin = 0
             else:
-                data = db.execute("SELECT organization_deck, organization_logo_url FROM organization WHERE id = ?",
-                                  (org_id[0],)).fetchall()[0]
-                logged_user_is_admin = db.execute('SELECT is_admin FROM user WHERE email = ?', (oauth_email,)).fetchone()
-                if logged_user_is_admin is None:
-                    logged_user_is_admin = 0
-                else:
-                    logged_user_is_admin = logged_user_is_admin[0]
-                return jsonify({"deck_url": data[0],
-                                "logo_url": data[1],
-                                "is_admin": logged_user_is_admin
-                                })
+                logged_user_is_admin = logged_user_is_admin[0]
+            return jsonify({"deck_url": data[0],
+                            "logo_url": data[1],
+                            "is_admin": logged_user_is_admin
+                             })
+        return error
 
 
 def get_token_email(token):
